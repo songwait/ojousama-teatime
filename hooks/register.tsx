@@ -4,13 +4,16 @@ import { BACKDROP } from './backdrop.js'
 import { registerDecor, startDecor } from './decor.js'
 import { makeColors } from './make-colors.js'
 import { STAGE } from './stage.js'
+import { registerVoice, startVoice } from './voice.js'
 
 // 大小姐的下午茶 (ojousama-teatime): a fan-made skin of Claude 大小姐 and DeepSeek 大肥鱼.
 //   - the backdrop: a seaside at dusk (night in dark mode) behind the conversation, the two of them in
 //     the strip left of the conversation column (/ojou move, /ojou size);
 //   - the stage: a portrait seaside in a side pane where the two of them move (/ojou pane);
 //   - chat decorations: avatars, a line of talk above the prompt, words on the working line and the
-//     hint, a status line (decor.tsx, /ojou deco).
+//     hint, a status line (decor.tsx, /ojou deco);
+//   - the voice: an added system prompt section so small talk comes back as the two of them talking
+//     (voice.ts, /ojou voice, off by default).
 //
 // What the desktop app does with a backdrop (measured 2026-11-14): it draws the SVG as a still picture
 // (no CSS or SMIL animation, framed or not), drops embedded pictures, draws only the first of several
@@ -140,14 +143,16 @@ async function storedLook($: Store): Promise<Look> {
 
 export const register: Register = on => {
   registerDecor(on)
+  registerVoice(on)
 
   on('session.start', async ($, e, next) => {
     await $.command.register({
       name: 'ojou',
-      description: 'Claude 大小姐 × 大肥鱼皮肤：live 打开 / off 关闭 / move、size 调位置 / pane 侧边小舞台 / deco 装饰',
-      argumentHint: '[live|off|move N|size N|pane on/off|deco on/off]',
+      description: '大小姐的下午茶：live 打开 / off 关闭 / move、size 调位置 / pane 侧边小舞台 / deco 装饰 / voice 角色口吻',
+      argumentHint: '[live|off|move N|size N|pane on/off|deco on/off|voice on/off]',
     })
     await startDecor($)
+    await startVoice($)
 
     if ((await $.store.get('pane')) === true) {
       await $.ui.open({ id: STAGE_PANE, title: STAGE_TITLE })
@@ -188,7 +193,8 @@ export const register: Register = on => {
           '/ojou move N   两人离窗口左边多远，占窗口宽的百分比（0–85）\n' +
           '/ojou size N   两人多高，占窗口高的百分比（5–80）\n' +
           '/ojou pane [off]  侧边小舞台：竖版的黄昏海边，两个人在里面动（off 关上）\n' +
-          '/ojou deco on|off  聊天里的装饰：头像、输入框上方的小人和台词、工作中那一行、提示行和状态栏',
+          '/ojou deco on|off  聊天里的装饰：头像、输入框上方的小人和台词、工作中那一行、提示行和状态栏\n' +
+          '/ojou voice on|off  角色口吻：闲聊时 Claude 用大小姐和大肥鱼的对话回复（默认关）',
       }
     }
 
@@ -232,6 +238,25 @@ export const register: Register = on => {
       }
     }
 
+    if (word === 'voice' || word === '口吻' || word === '角色') {
+      const isOn = arg === undefined ? null : ['on', '开', '打开'].includes(arg) ? true : ['off', '关', '关闭'].includes(arg) ? false : null
+
+      if (isOn === null) {
+        const now = (await $.store.get('voice')) === true
+
+        return { text: `角色口吻现在${now ? '开着' : '关着'}。用法：/ojou voice on 或 /ojou voice off` }
+      }
+
+      await $.store.set('voice', isOn)
+      await startVoice($)
+
+      return {
+        text: isOn
+          ? '角色口吻已打开：闲聊时由大小姐和大肥鱼来回话，做正事照常。从下一条消息起生效。'
+          : '角色口吻已关闭。',
+      }
+    }
+
     if (word === 'deco' || word === '装饰') {
       const isOn = arg === undefined ? null : ['on', '开', '打开'].includes(arg) ? true : ['off', '关', '关闭'].includes(arg) ? false : null
 
@@ -246,10 +271,11 @@ export const register: Register = on => {
       return { text: isOn ? '聊天装饰已打开。' : '聊天装饰已关闭。' }
     }
 
-    const look = ALIASES[word]
+    // "/ojou live off" reads as off, "/ojou live on" as on.
+    const look = word === 'live' && arg !== undefined && ALIASES[arg] !== undefined ? ALIASES[arg] : ALIASES[word]
 
     if (look === undefined) {
-      return { text: `不认得“${e.args.trim()}”。可以用 live、off、move N、size N、pane、deco。` }
+      return { text: `不认得“${e.args.trim()}”。可以用 live、off、move N、size N、pane、deco、voice。` }
     }
 
     await $.store.set('look', look)
