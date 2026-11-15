@@ -100,9 +100,12 @@ export function registerDecor(on: On): void {
     const { Box, Svg } = $.ui.resolve(e)
     const body = await next(e)
 
+    // The column takes the whole row (flexGrow) and keeps the bubble at its right edge. Sized to its
+    // content instead, it gave the app's bubble no width to measure against: the text wrapped early
+    // and only came right once a hover redrew the bubble.
     return (
-      <Box flexDirection="row" alignItems="flex-start" justifyContent="flex-end" gap={1}>
-        <Box flexDirection="column" flexShrink={1}>
+      <Box flexDirection="row" alignItems="flex-start" gap={1}>
+        <Box flexDirection="column" alignItems="flex-end" flexGrow={1} flexShrink={1}>
           {body}
         </Box>
         <Svg source={FEIYU_AVATAR} width={AVATAR} height={AVATAR} alt="大肥鱼" />
