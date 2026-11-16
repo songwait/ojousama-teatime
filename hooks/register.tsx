@@ -66,8 +66,8 @@ const DARK = {
 const COLORS = makeColors({ label: '大小姐的下午茶', roles: ROLES, light: LIGHT, dark: DARK })
 
 // Where the pair stands, as window percentages: move = left edge (share of the width), size = height
-// (share of the height). Both ride in the scene's name, so a change is a new scene the app has to draw
-// afresh, and the render hook reads them back from the name.
+// (share of the height). Both ride in the backdrop's id, so a change is a new backdrop the app has to
+// draw afresh, and the render hook reads them back from the id.
 const SCENE_PREFIX = 'ojou-seaside'
 const SCENE_NAME = /^ojou-seaside-m(\d+)-s(\d+)$/
 const DEFAULT_MOVE = 22
@@ -79,7 +79,7 @@ const SCENE_VARS = /--m:[0-9.]+;--s:[0-9.]+/
 function live(move: number, size: number): ThemeSetArgs {
   return {
     colors: COLORS.theme,
-    backdrop: { scene: `${SCENE_PREFIX}-m${move}-s${size}`, glass: { blur: 14, opacity: 0.6 } },
+    backdrop: { id: `${SCENE_PREFIX}-m${move}-s${size}`, glass: { blur: 14, opacity: 0.6 } },
   }
 }
 
@@ -214,7 +214,7 @@ export const register: Register = on => {
         return { text: (isMove ? `已记下左起 ${clamped}%` : `已记下高 ${clamped}%`) + '，打开皮肤后生效：/ojou live' }
       }
 
-      // A new scene name makes the app draw the backdrop again with the new placement.
+      // A new backdrop id makes the app draw the backdrop again with the new placement.
       await $.theme.set(isMove ? live(clamped, size) : live(move, clamped))
 
       return { text: isMove ? `两人挪到左起 ${clamped}%。` : `两人的高度改成窗口的 ${clamped}%。` }
@@ -335,7 +335,7 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'Backdrop' }, ($, e, next) => {
-    const named = SCENE_NAME.exec(e.props.scene)
+    const named = SCENE_NAME.exec(e.props.id)
 
     if (named === null || (e.surface !== 'desktop' && e.surface !== 'mobile')) {
       return next(e)
