@@ -1,4 +1,4 @@
-import type { Register, ThemeSetArgs } from 'claude-code'
+import type { Register, ThemeResult, ThemeSetArgs } from 'claude-code'
 
 import { BACKDROP } from './backdrop.js'
 import { registerDecor, startDecor } from './decor.js'
@@ -81,6 +81,24 @@ function live(move: number, size: number): ThemeSetArgs {
     colors: COLORS.theme,
     backdrop: { scene: `${SCENE_PREFIX}-m${move}-s${size}`, glass: { blur: 14, opacity: 0.6 } },
   }
+}
+
+// theme.set throws where this Claude Code refuses the theme, as one that spells the backdrop otherwise
+// does (2.1.321 wanted `backdrop: { id }`; 2.1.325 takes `scene`). Left to throw, it skipped the whole
+// hook: no colors or greeting at the start, and /ojou answering "no command.run hook answered it".
+// Caught, it comes back as one line saying why.
+type Themer = { theme: { set: (attributes: ThemeSetArgs) => Promise<ThemeResult> } }
+
+async function setTheme($: Themer, attributes: ThemeSetArgs): Promise<ThemeResult | { refused: string }> {
+  try {
+    return await $.theme.set(attributes)
+  } catch (error) {
+    return { refused: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+function refusedText(reason: string): string {
+  return `皮肤没能打开，Claude Code 不认这次设置（${reason}）。Claude Code 不是最新版的话，更新后再试。`
 }
 
 // The stage in a side pane (/ojou pane): a portrait seaside where the two of them move (SMIL runs in a
@@ -169,9 +187,11 @@ export const register: Register = on => {
       }
 
       const { move, size } = await placement($)
-      const set = await $.theme.set(live(move, size))
+      const set = await setTheme($, live(move, size))
 
-      if (set.isDrawn) {
+      if ('refused' in set) {
+        $.ui.toast(refusedText(set.refused))
+      } else if (set.isDrawn) {
         $.ui.toast(GREETINGS[Math.floor(Math.random() * GREETINGS.length)] ?? GREETINGS[0]!)
       }
     }
@@ -215,7 +235,11 @@ export const register: Register = on => {
       }
 
       // A new scene name makes the app draw the backdrop again with the new placement.
-      await $.theme.set(isMove ? live(clamped, size) : live(move, clamped))
+      const moved = await setTheme($, isMove ? live(clamped, size) : live(move, clamped))
+
+      if ('refused' in moved) {
+        return { text: refusedText(moved.refused) }
+      }
 
       return { text: isMove ? `两人挪到左起 ${clamped}%。` : `两人的高度改成窗口的 ${clamped}%。` }
     }
@@ -286,7 +310,11 @@ export const register: Register = on => {
       return { text: '皮肤已关闭。/ojou live 可以再打开。' }
     }
 
-    const set = await $.theme.set(live(move, size))
+    const set = await setTheme($, live(move, size))
+
+    if ('refused' in set) {
+      return { text: refusedText(set.refused) }
+    }
 
     return { text: set.isDrawn ? '皮肤已打开。' : `已记下，但这里画不出主题：${set.reason}` }
   })
