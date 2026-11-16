@@ -154,7 +154,7 @@ export function registerDecor(on: On): void {
 
   // The band above the prompt: the two heads and a line of talk that changes every turn.
   on('ui.render', { component: 'AbovePrompt' }, ($, e, next) => {
-    if (!decor.isOn || e.plugin !== $.plugin.name || e.props.hasSurvey) {
+    if (!decor.isOn || e.props.hasSurvey) {
       return next(e)
     }
 
